@@ -1,118 +1,83 @@
 ﻿<template>
-  <section class="uniform-page">
-    <!-- 顶部项目名 -->
-    <div class="top-project-name">VulnOps for Smart Contracts</div>
-    <div class="page-layout">
-      <!-- 左栏：漏洞工单 -->
-      <aside class="ticket-sidebar">
-        <div v-for="item in tickets" :key="item.id" class="ticket-card"
-          :class="{ active: activeTicketId === item.id }" @click="activeTicketId = item.id">
-          <h4>{{ item.id }}</h4>
-          <p>{{ item.title }}</p>
-          <span class="severity" :class="item.severity">{{ item.severity }}</span>
-        </div>
-      </aside>
-
-      <!-- 中间栏：修复功能概览 -->
-      <nav class="func-nav">
-        <button class="nav-btn" :class="{ active: activeFunc === 'code' }" @click="activeFunc = 'code'">
-          漏洞代码
-        </button>
-        <button class="nav-btn" :class="{ active: activeFunc === 'patch' }" @click="activeFunc = 'patch'">
-          补丁方案
-        </button>
-        <button class="nav-btn" :class="{ active: activeFunc === 'verify' }" @click="activeFunc = 'verify'">
-          回归验证
-        </button>
-      </nav>
-
-      <!-- 右侧：修复详情 -->
-      <main class="func-detail">
-        <!-- 1. 漏洞代码 -->
-        <div v-if="activeFunc === 'code'">
-          <h3>待修复漏洞代码</h3>
-          <pre class="code-box mono">{{ activeTicket.codeSnippet }}</pre>
-          <div class="info-card">
-            <p>修复约束：{{ activeTicket.constraints.join('；') }}</p>
-          </div>
-        </div>
-
-        <!-- 2. 补丁方案 -->
-        <div v-if="activeFunc === 'patch'">
-          <h3>自动生成补丁</h3>
-          <div class="row">
-            <button v-for="item in activeTicket.patchCandidates" :key="item.key"
-              class="btn" :class="{ primary: selectedPatch === item.key, ghost: selectedPatch !== item.key }"
-              @click="selectedPatch = item.key">
-              方案{{ item.key }}
-            </button>
-          </div>
-          <pre class="code-box mono">{{ currentPatch.diff }}</pre>
-          <p>Gas增量：{{ currentPatch.impact.gas }}</p>
-        </div>
-
-        <!-- 3. 回归验证 -->
-        <div v-if="activeFunc === 'verify'">
-          <h3>PoC回归验证</h3>
-          <table class="table">
-            <tr><th>检查项</th><th>结果</th></tr>
-            <tr v-for="item in patchVerifyItems" :key="item.key">
-              <td>{{ item.name }}</td><td>{{ item.status }}</td>
-            </tr>
-          </table>
-          <pre class="code-box mono">{{ afterFixLogs }}</pre>
-        </div>
-      </main>
+  <div class="scan-content">
+    <h3>智能合约漏洞检测</h3>
+    <!-- 检测的具体功能：上传合约 + Agent选择 + 扫描结果 -->
+    <div class="upload-zone">
+      <span class="chip">当前文件：{{ currentFileName }}</span>
+      <label class="btn primary">
+        上传合约文件<input type="file" accept=".sol" style="display: none;" @change="onFileChange" />
+      </label>
     </div>
-  </section>
+    <pre class="code-box mono">{{ codeText }}</pre>
+    
+    <h4>选择检测Agent</h4>
+    <div class="agent-list">
+      <label v-for="agent in scanAgents" :key="agent.id" class="agent-card"
+             :class="{ active: selectedAgents.includes(agent.id) }">
+        <input type="checkbox" :value="agent.id" v-model="selectedAgents" />
+        <div>
+          <h4>{{ agent.name }}<span class="chip">{{ agent.tag }}</span></h4>
+          <p>{{ agent.description }}</p>
+        </div>
+      </label>
+    </div>
+    <button class="btn primary" @click="startScan">开始扫描</button>
+
+    <h4 v-if="shownResults.length">扫描结果</h4>
+    <table class="table" v-if="shownResults.length">
+      <thead><tr><th>ID</th><th>漏洞描述</th><th>等级</th><th>置信度</th></tr></thead>
+      <tbody><tr v-for="item in shownResults" :key="item.id">
+        <td>{{ item.id }}</td><td>{{ item.title }}</td>
+        <td><span class="severity" :class="item.severity">{{ item.severity }}</span></td>
+        <td>{{ item.confidence }}</td>
+      </tr></tbody>
+    </table>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { tickets, patchVerifyItems, afterFixLogs } from '../data/mockData';
+import { ref } from 'vue';
+import { scanAgents, defaultCode, scanResults } from '../data/mockData';
 
-// 工单
-const activeTicketId = ref(tickets[0].id);
-const activeTicket = computed(() => tickets.find(i => i.id === activeTicketId.value) || tickets[0]);
-// 功能切换
-const activeFunc = ref('code');
-// 补丁选择
-const selectedPatch = ref('A');
-const currentPatch = computed(() => {
-  return activeTicket.value.patchCandidates.find(i => i.key === selectedPatch.value) || activeTicket.value.patchCandidates[0];
-});
+// 仅保留检测功能的状态和方法
+const currentFileName = ref('sample-vault.sol');
+const codeText = ref(defaultCode);
+const selectedAgents = ref(['static', 'symbolic']);
+const shownResults = ref([]);
+
+const onFileChange = (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  currentFileName.value = file.name;
+  const reader = new FileReader();
+  reader.onload = (res) => codeText.value = res.target?.result;
+  reader.readAsText(file);
+};
+const startScan = () => (shownResults.value = scanResults);
 </script>
 
 <style scoped>
-/* 统一布局样式（三页面完全通用） */
-.uniform-page { width: 100%; min-height: 100vh; background: #0d1117; color: #e6edf3; }
-.top-project-name {
-  padding: 16px; background: #111827; font-size: 20px; font-weight: bold;
-  border-bottom: 1px solid #1e293b; text-align: center;
-}
-.page-layout {
-  display: grid; grid-template-columns: 280px 200px 1fr; gap: 16px; padding: 16px;
-}
-/* 左栏工单 */
-.ticket-sidebar { display: grid; gap: 8px; }
-.ticket-card {
-  padding: 12px; background: #111827; border: 1px solid #1e293b; border-radius: 8px;
-  cursor: pointer;
-}
-.ticket-card.active { border-color: #7dd3fc; background: rgba(125,211,252,0.1); }
-/* 中间功能导航 */
-.func-nav { display: flex; flex-direction: column; gap: 8px; }
-.nav-btn {
-  padding: 12px; background: #111827; border: 1px solid #1e293b; border-radius: 8px;
-  text-align: left; cursor: pointer; color: #94a3b8;
-}
-.nav-btn.active { border-color: #7dd3fc; color: #e6edf3; }
-/* 右侧详情 */
-.func-detail { background: #111827; border-radius: 12px; padding: 16px; }
-.row { display: flex; gap: 8px; margin: 12px 0; }
+/* 仅保留检测内容的样式，去掉布局样式 */
+.scan-content { width: 100%; }
+.upload-zone { margin: 16px 0; display: flex; gap: 12px; align-items: center; }
 .btn { padding: 8px 12px; border-radius: 8px; cursor: pointer; }
 .btn.primary { background: #7dd3fc; color: #000; border: none; }
-.btn.ghost { background: transparent; border: 1px solid #1e293b; }
-.table { width: 100%; margin: 12px 0; border-collapse: collapse; }
+.code-box {
+  height: 200px;
+  overflow: auto;
+  background: #0a0f1a;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+.agent-list { display: grid; gap: 8px; margin: 12px 0; }
+.agent-card {
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+}
+.agent-card.active { border-color: #7dd3fc; background: rgba(125,211,252,0.1); }
+.table { width: 100%; border-collapse: collapse; margin: 12px 0; }
 .table th, .table td { padding: 8px; border: 1px solid #1e293b; }
 </style>

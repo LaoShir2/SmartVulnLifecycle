@@ -121,10 +121,15 @@ export const scanResults = [
 
 export const tickets = [
   {
-    id: 'TCK-1042',
-    title: 'Vault合约重入漏洞 - 资产可被恶意提取',
-    severity: 'high',
-    stage: '待确认',
+    id: "TCK-1042",
+    title: "Vault合约重入漏洞",
+    function: "function withdraw()",
+    severity: "high",
+    triggered: true,
+    loss: "100 ETH",
+    patchGenerated: true,
+    multiDim: "安全：高 | Gas：中 | 兼容：高",
+    stage: "待确认",
     status: 'Reproducible',
     type: 'Reentrancy / Asset Drain',
     chain: 'Ethereum',
